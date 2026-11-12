@@ -8,6 +8,7 @@ export default async function detectFace(
   const reqBlob = bufferToBlob(imageBuffer);
   const formData = new FormData();
   formData.append("minSize", env.DETECT_MIN_SIZE.toString());
+  formData.append("padding", env.DETECT_PADDING.toString());
   if (env.DETECT_START_X) {
     formData.append("startX", env.DETECT_START_X.toString());
   }

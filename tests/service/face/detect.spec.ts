@@ -55,6 +55,7 @@ describe("detectFace", () => {
 
   test("オプションがリクエストに反映される", async () => {
     writableEnv.DETECT_MIN_SIZE = 100;
+    writableEnv.DETECT_PADDING = 10;
     writableEnv.DETECT_START_X = 200;
     writableEnv.DETECT_START_Y = 300;
     writableEnv.DETECT_END_X = 400;
@@ -78,6 +79,7 @@ describe("detectFace", () => {
     );
     const formData = vi.mocked(fetch).mock.calls[0][1]!.body as FormData;
     expect(formData.get("minSize")).toBe("100");
+    expect(formData.get("padding")).toBe("10");
     expect(formData.get("startX")).toBe("200");
     expect(formData.get("startY")).toBe("300");
     expect(formData.get("endX")).toBe("400");

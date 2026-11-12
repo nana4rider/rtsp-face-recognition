@@ -40,8 +40,12 @@ const env = cleanEnv(process.env, {
     testDefault: "http://face-detector.local",
   }),
   DETECT_MIN_SIZE: num({
-    desc: "https://nana4rider.github.io/openapi-ui/?face-detector#/default/post_detect 80px以上ないとRekognitionが受け付けない",
-    default: 80,
+    desc: "https://nana4rider.github.io/openapi-ui/?face-detector#/default/post_detect minSize + padding * 2 >= 80px でないとRekognitionが受け付けない",
+    default: 70,
+  }),
+  DETECT_PADDING: num({
+    desc: "https://nana4rider.github.io/openapi-ui/?face-detector#/default/post_detect",
+    default: 5,
   }),
   DETECT_START_X: num({
     desc: "https://nana4rider.github.io/openapi-ui/?face-detector#/default/post_detect",
