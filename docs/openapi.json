@@ -1,0 +1,66 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "RTSP Face Recognition",
+    "description": "RTSPストリームから画像を取得して顔認識し、Webhookで結果を通知するアプリケーション",
+    "version": "1.2.2"
+  },
+  "components": {
+    "schemas": {}
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/trigger": {
+      "post": {
+        "summary": "顔認識を開始する",
+        "tags": [
+          "default"
+        ],
+        "description": "RTSPストリームの顔認識を非同期で開始します。",
+        "responses": {
+          "202": {
+            "description": "顔認識処理を受け付けました。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "顔認識処理を受け付けました。",
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "accepted"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "status"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:{port}",
+      "description": "Local server",
+      "variables": {
+        "port": {
+          "default": "3000"
+        }
+      }
+    }
+  ]
+}
