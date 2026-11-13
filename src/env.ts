@@ -41,11 +41,11 @@ const env = cleanEnv(process.env, {
   }),
   DETECT_MIN_SIZE: num({
     desc: "https://nana4rider.github.io/openapi-ui/?face-detector#/default/post_detect minSize + padding * 2 >= 80px でないとRekognitionが受け付けない",
-    default: 70,
+    default: 40,
   }),
   DETECT_PADDING: num({
     desc: "https://nana4rider.github.io/openapi-ui/?face-detector#/default/post_detect",
-    default: 5,
+    default: 20,
   }),
   DETECT_START_X: num({
     desc: "https://nana4rider.github.io/openapi-ui/?face-detector#/default/post_detect",
@@ -79,7 +79,7 @@ const env = cleanEnv(process.env, {
   }),
   RECOGNITION_MAX_RETRIES: num({
     desc: "初回の認識に加えて許可するリトライ回数",
-    default: 2,
+    default: 3,
   }),
 });
 
