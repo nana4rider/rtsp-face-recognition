@@ -10,7 +10,7 @@ RUN npm run build
 
 FROM node:24-alpine AS runtime
 
-RUN apk add --no-cache graphicsmagick ffmpeg
+RUN apk add --no-cache ffmpeg
 
 WORKDIR /app
 COPY --chown=node:node --from=build /app/package*.json ./

@@ -43,6 +43,10 @@ const env = cleanEnv(process.env, {
     desc: "https://nana4rider.github.io/openapi-ui/?face-detector#/default/post_detect minSize + padding * 2 >= 80px でないとRekognitionが受け付けない",
     default: 40,
   }),
+  DETECT_MAX_SIZE: num({
+    desc: "https://nana4rider.github.io/openapi-ui/?face-detector#/default/post_detect",
+    default: undefined,
+  }),
   DETECT_PADDING: num({
     desc: "https://nana4rider.github.io/openapi-ui/?face-detector#/default/post_detect",
     default: 20,
