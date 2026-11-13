@@ -5,9 +5,9 @@ import type { RecognizeResult } from "@/service/face/recognize";
 import recognizeFace from "@/service/face/recognize";
 import triggerWebhook from "@/service/webhook";
 import { composeImages } from "@/util/imageUtil";
-import { spawn, type ChildProcess } from "node:child_process";
 import dayjs from "dayjs";
 import { mkdir, writeFile } from "fs/promises";
+import { spawn, type ChildProcess } from "node:child_process";
 import path from "path";
 
 let activeRecognition: Promise<void> | undefined;
@@ -105,7 +105,7 @@ async function processFrames(
     if (signal.aborted) break;
     if (faceImageBuffers.length >= env.RECOGNITION_FACE_COUNT) continue;
 
-    logger.info(`receive buffer length: ${imageBuffer.length}`);
+    logger.debug(`receive buffer length: ${imageBuffer.length}`);
     const faceBuffer = await detectFace(imageBuffer);
     void writeDebugFile(imageBuffer, debugDir, faceBuffer ? "ok" : "ng");
     if (!faceBuffer) continue;
