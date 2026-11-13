@@ -101,7 +101,7 @@ describe("startFaceRecognition (RTSP)", () => {
     vi.mocked(detectFace).mockImplementation((image) =>
       Promise.resolve(Buffer.from(`face:${image.toString()}`)),
     );
-    vi.mocked(recognizeFace).mockResolvedValue(undefined);
+    vi.mocked(recognizeFace).mockResolvedValue({ status: "not_found" });
     vi.mocked(composeImages).mockImplementation((images) =>
       Promise.resolve(Buffer.concat(images)),
     );
@@ -111,7 +111,11 @@ describe("startFaceRecognition (RTSP)", () => {
   });
 
   test("FFmpegを起動し、RTSP URLをログに出さず認識結果を通知する", async () => {
-    const result = { userId: "person-1", similarity: 98 };
+    const result = {
+      status: "matched" as const,
+      userId: "person-1",
+      similarity: 98,
+    };
     vi.mocked(recognizeFace).mockResolvedValue(result);
 
     const { recognition } = await settleRecognition();
@@ -149,7 +153,7 @@ describe("startFaceRecognition (RTSP)", () => {
     vi.mocked(detectFace)
       .mockImplementationOnce(() => detection.promise)
       .mockImplementation((image) => Promise.resolve(Buffer.from(image)));
-    vi.mocked(recognizeFace).mockResolvedValueOnce(undefined);
+    vi.mocked(recognizeFace).mockResolvedValueOnce({ status: "not_found" });
 
     const { recognition } = await settleRecognition();
     sendFrame("first");
@@ -213,7 +217,11 @@ describe("startFaceRecognition (RTSP)", () => {
 
   test("認識に失敗した場合、再試行後の一致結果を通知する", async () => {
     writableEnv.RECOGNITION_MAX_RETRIES = 1;
-    const result = { userId: "retry-person", similarity: 92 };
+    const result = {
+      status: "matched" as const,
+      userId: "retry-person",
+      similarity: 92,
+    };
     vi.mocked(recognizeFace)
       .mockRejectedValueOnce(new Error("service unavailable"))
       .mockResolvedValueOnce(result);
@@ -240,6 +248,36 @@ describe("startFaceRecognition (RTSP)", () => {
     });
   });
 
+  test("閾値未満の場合、リトライ回数を増やさず次の画像で再認識する", async () => {
+    writableEnv.RECOGNITION_MAX_RETRIES = 1;
+    vi.mocked(recognizeFace)
+      .mockResolvedValueOnce({
+        status: "below_threshold",
+        userId: "low-similarity-person",
+        similarity: 80,
+      })
+      .mockResolvedValueOnce({ status: "not_found" })
+      .mockResolvedValueOnce({ status: "not_found" });
+
+    const { recognition } = await settleRecognition();
+    sendFrame("below-threshold");
+    await vi.waitFor(() => expect(recognizeFace).toHaveBeenCalledOnce());
+    sendFrame("not-found-retry");
+    await vi.waitFor(() => expect(recognizeFace).toHaveBeenCalledTimes(2));
+    sendFrame("retry-limit");
+    await vi.waitFor(() => expect(recognizeFace).toHaveBeenCalledTimes(3));
+    sendFrame("must-not-run");
+    child.close(0);
+    await recognition;
+
+    expect(recognizeFace).toHaveBeenCalledTimes(3);
+    expect(triggerWebhook).toHaveBeenCalledTimes(1);
+    expect(triggerWebhook).toHaveBeenCalledWith({
+      type: "detect",
+      image: jpeg("below-threshold").toString("base64"),
+    });
+  });
+
   test("初回認識後、設定した回数だけ再試行する", async () => {
     writableEnv.RECOGNITION_MAX_RETRIES = 1;
     const { recognition } = await settleRecognition();
@@ -260,6 +298,7 @@ describe("startFaceRecognition (RTSP)", () => {
       .mockResolvedValueOnce(Buffer.from("face-one"))
       .mockResolvedValueOnce(Buffer.from("face-two"));
     vi.mocked(recognizeFace).mockResolvedValue({
+      status: "matched",
       userId: "two-face-person",
       similarity: 95,
     });
@@ -361,6 +400,7 @@ describe("startFaceRecognition (RTSP)", () => {
   test("デバッグモードの場合、フレーム画像と合成画像を保存する", async () => {
     vi.mocked(logger.isDebugEnabled).mockReturnValue(true);
     vi.mocked(recognizeFace).mockResolvedValue({
+      status: "matched",
       userId: "debug-person",
       similarity: 99,
     });

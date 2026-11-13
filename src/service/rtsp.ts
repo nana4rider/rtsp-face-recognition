@@ -101,6 +101,7 @@ async function processFrames(
   signal: AbortSignal,
 ) {
   let retryCount = 0;
+  let detectWebhookSent = false;
   for await (const imageBuffer of frames) {
     if (signal.aborted) break;
     if (faceImageBuffers.length >= env.RECOGNITION_FACE_COUNT) continue;
@@ -113,7 +114,8 @@ async function processFrames(
     logger.info(`[RTSP] ${faceImageBuffers.length} faces detected.`);
 
     if (faceImageBuffers.length !== env.RECOGNITION_FACE_COUNT) continue;
-    if (retryCount === 0) {
+    if (!detectWebhookSent) {
+      detectWebhookSent = true;
       void triggerWebhook({
         type: "detect",
         image: imageBuffer.toString("base64"),
@@ -128,14 +130,16 @@ async function processFrames(
     } catch (err) {
       logger.warn("[Recognition] Failed:", err);
     }
-    if (result) {
+    if (result?.status === "matched") {
       logger.info(`[Recognition] recognize: ${JSON.stringify(result)}`);
       await triggerWebhook({ type: "recognition", result });
       return;
     }
 
-    retryCount++;
-    if (retryCount > env.RECOGNITION_MAX_RETRIES) return;
+    if (result?.status !== "below_threshold") {
+      retryCount++;
+      if (retryCount > env.RECOGNITION_MAX_RETRIES) return;
+    }
     faceImageBuffers.length = 0;
   }
 }
