@@ -14,7 +14,8 @@ RUN apk add --no-cache ffmpeg
 
 WORKDIR /app
 COPY --chown=node:node --from=build /app/package*.json ./
-COPY --chown=node:node --from=build /app/dist dist
+RUN npm ci --omit=dev --ignore-scripts
+COPY --from=build /app/dist dist
 
 USER node
 EXPOSE 3000

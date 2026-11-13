@@ -1,6 +1,6 @@
 {
   "name": "rtsp-face-recognition",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "RTSPストリームから画像を取得して顔認識し、Webhookで結果を通知するアプリケーション",
   "author": "nana4rider",
   "license": "ISC",
