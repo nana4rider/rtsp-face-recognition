@@ -47,12 +47,13 @@ describe("recognizeFace", () => {
       }),
     );
     expect(result).toEqual({
+      status: "matched",
       userId: "testUserId",
       similarity: 97,
     });
   });
 
-  test("UserMatchesが空の場合、undefinedを返す", async () => {
+  test("UserMatchesが空の場合、未検出ステータスを返す", async () => {
     const mockSend: RekognitionSend = vi.spyOn(
       RekognitionClient.prototype,
       "send",
@@ -68,10 +69,10 @@ describe("recognizeFace", () => {
     expect(mockSend).toHaveBeenCalledExactlyOnceWith(
       expect.any(SearchUsersByImageCommand),
     );
-    expect(result).toBeUndefined();
+    expect(result).toEqual({ status: "not_found" });
   });
 
-  test("一致するユーザーが見つからなかった場合、undefinedを返す", async () => {
+  test("一致するユーザーが見つからなかった場合、未検出ステータスを返す", async () => {
     const mockSend: RekognitionSend = vi.spyOn(
       RekognitionClient.prototype,
       "send",
@@ -87,10 +88,10 @@ describe("recognizeFace", () => {
     expect(mockSend).toHaveBeenCalledExactlyOnceWith(
       expect.any(SearchUsersByImageCommand),
     );
-    expect(result).toBeUndefined();
+    expect(result).toEqual({ status: "not_found" });
   });
 
-  test("FACE_MATCH_THRESHOLDが設定されている場合、閾値を下回った検出があるとundefinedを返す", async () => {
+  test("FACE_MATCH_THRESHOLDが設定されている場合、閾値を下回った検出ステータスを返す", async () => {
     const mockSend: RekognitionSend = vi.spyOn(
       RekognitionClient.prototype,
       "send",
@@ -109,6 +110,30 @@ describe("recognizeFace", () => {
 
     const result = await recognizeFace(mockImageBuffer);
 
-    expect(result).toBeUndefined();
+    expect(result).toEqual({
+      status: "below_threshold",
+      userId: "testUserId",
+      similarity: 80,
+    });
+  });
+
+  test("Similarityが返らない場合、未検出ステータスを返す", async () => {
+    const mockSend: RekognitionSend = vi.spyOn(
+      RekognitionClient.prototype,
+      "send",
+    );
+
+    mockSend.mockResolvedValueOnce({
+      UserMatches: [
+        {
+          User: { UserId: "testUserId" },
+          Similarity: undefined,
+        },
+      ],
+    } as unknown as SearchUsersByImageCommandOutput);
+
+    const result = await recognizeFace(Buffer.from("mockBuffer"));
+
+    expect(result).toEqual({ status: "not_found" });
   });
 });

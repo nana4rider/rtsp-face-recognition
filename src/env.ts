@@ -82,8 +82,8 @@ const env = cleanEnv(process.env, {
     default: 3,
   }),
   RECOGNITION_MAX_RETRIES: num({
-    desc: "初回の認識に加えて許可するリトライ回数",
-    default: 3,
+    desc: "顔が未検出、または認識エラーの場合に許可する再試行回数(閾値未満は回数に含めない)",
+    default: 2,
   }),
 });
 
