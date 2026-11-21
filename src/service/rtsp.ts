@@ -4,7 +4,7 @@ import detectFace from "@/service/face/detect";
 import type { RecognizeResult } from "@/service/face/recognize";
 import recognizeFace from "@/service/face/recognize";
 import triggerWebhook from "@/service/webhook";
-import { composeImages } from "@/util/imageUtil";
+import { composeImages, createJpegFrameParser } from "@/util/imageUtil";
 import dayjs from "dayjs";
 import { mkdir, writeFile } from "fs/promises";
 import { spawn, type ChildProcess } from "node:child_process";
@@ -29,7 +29,6 @@ async function recognizeFromStream() {
     timedOut = true;
     controller.abort();
   }, env.DETECT_TIMEOUT);
-  const faceImageBuffers: Buffer[] = [];
   const debugDir = logger.isDebugEnabled()
     ? dayjs().format("YYYY-MM-DD-HH-mm-ss")
     : undefined;
@@ -75,12 +74,7 @@ async function recognizeFromStream() {
       );
     });
     try {
-      await processFrames(
-        frames,
-        faceImageBuffers,
-        debugDir,
-        controller.signal,
-      );
+      await processFrames(frames, debugDir, controller.signal);
     } finally {
       controller.signal.removeEventListener("abort", stopProcess);
       if (child.exitCode === null) child.kill("SIGTERM");
@@ -96,11 +90,11 @@ async function recognizeFromStream() {
 
 async function processFrames(
   frames: LatestFrameQueue,
-  faceImageBuffers: Buffer[],
   debugDir: string | undefined,
   signal: AbortSignal,
 ) {
   const startedAt = performance.now();
+  const faceImageBuffers: Buffer[] = [];
   let retryCount = 0;
   let detectWebhookSent = false;
   for await (const imageBuffer of frames) {
@@ -151,26 +145,11 @@ async function readJpegFrames(
   signal: AbortSignal,
   frames: LatestFrameQueue,
 ) {
-  let pending = Buffer.alloc(0);
+  const parser = createJpegFrameParser();
   try {
     for await (const chunk of stream) {
       if (signal.aborted) break;
-      pending = Buffer.concat([pending, Buffer.from(chunk as Uint8Array)]);
-      while (true) {
-        const start = pending.indexOf(Buffer.from([0xff, 0xd8]));
-        if (start < 0) {
-          pending = pending.subarray(Math.max(0, pending.length - 1));
-          break;
-        }
-        const end = pending.indexOf(Buffer.from([0xff, 0xd9]), start + 2);
-        if (end < 0) {
-          pending = pending.subarray(start);
-          break;
-        }
-        const jpeg = pending.subarray(start, end + 2);
-        frames.push(jpeg);
-        pending = pending.subarray(end + 2);
-      }
+      for (const frame of parser.push(chunk as Uint8Array)) frames.push(frame);
     }
     frames.finish();
   } catch (err) {

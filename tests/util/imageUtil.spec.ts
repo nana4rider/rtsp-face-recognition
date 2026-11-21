@@ -1,4 +1,4 @@
-import { composeImages } from "@/util/imageUtil";
+import { composeImages, createJpegFrameParser } from "@/util/imageUtil";
 import sharp from "sharp";
 
 async function createJpeg(width: number, height: number, color: string) {
@@ -13,6 +13,29 @@ async function createJpeg(width: number, height: number, color: string) {
     .jpeg()
     .toBuffer();
 }
+
+describe("createJpegFrameParser", () => {
+  test("複数のJPEGフレームを切り出す", () => {
+    const parser = createJpegFrameParser();
+    const first = Buffer.from([0xff, 0xd8, 1, 0xff, 0xd9]);
+    const second = Buffer.from([0xff, 0xd8, 2, 0xff, 0xd9]);
+
+    expect(parser.push(Buffer.concat([first, second]))).toEqual([
+      first,
+      second,
+    ]);
+  });
+
+  test("フレーム境界がチャンクをまたいでも切り出す", () => {
+    const parser = createJpegFrameParser();
+
+    expect(parser.push(Buffer.from([0xff]))).toEqual([]);
+    expect(parser.push(Buffer.from([0xd8, 1, 0xff]))).toEqual([]);
+    expect(parser.push(Buffer.from([0xd9]))).toEqual([
+      Buffer.from([0xff, 0xd8, 1, 0xff, 0xd9]),
+    ]);
+  });
+});
 
 describe("composeImages", () => {
   test("空の画像リストを渡すと空のバッファを返す", async () => {

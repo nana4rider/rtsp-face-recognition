@@ -4,7 +4,7 @@ import detectFace from "@/service/face/detect";
 import recognizeFace from "@/service/face/recognize";
 import { startFaceRecognition } from "@/service/rtsp";
 import triggerWebhook from "@/service/webhook";
-import { composeImages } from "@/util/imageUtil";
+import * as imageUtil from "@/util/imageUtil";
 import { mkdir, writeFile } from "fs/promises";
 import { spawn } from "node:child_process";
 import { PassThrough } from "stream";
@@ -26,7 +26,13 @@ vi.mock("@/logger", () => ({
 vi.mock("@/service/face/detect", () => ({ default: vi.fn() }));
 vi.mock("@/service/face/recognize", () => ({ default: vi.fn() }));
 vi.mock("@/service/webhook", () => ({ default: vi.fn() }));
-vi.mock("@/util/imageUtil", () => ({ composeImages: vi.fn() }));
+vi.mock("@/util/imageUtil", async (importOriginal) => {
+  const actual = await importOriginal<typeof imageUtil>();
+  return {
+    ...actual,
+    composeImages: vi.fn(),
+  };
+});
 vi.mock("node:fs/promises", () => ({
   mkdir: vi.fn(),
   writeFile: vi.fn(),
@@ -102,7 +108,7 @@ describe("startFaceRecognition (RTSP)", () => {
       Promise.resolve(Buffer.from(`face:${image.toString()}`)),
     );
     vi.mocked(recognizeFace).mockResolvedValue({ status: "not_found" });
-    vi.mocked(composeImages).mockImplementation((images) =>
+    vi.mocked(imageUtil.composeImages).mockImplementation((images) =>
       Promise.resolve(Buffer.concat(images)),
     );
     vi.mocked(triggerWebhook).mockResolvedValue(undefined);
@@ -172,13 +178,13 @@ describe("startFaceRecognition (RTSP)", () => {
     ).toEqual([jpeg("first").toString(), jpeg("latest").toString()]);
   });
 
-  test("JPEGマーカーがチャンクをまたぐ場合もフレームを読み取る", async () => {
+  test("分割されたJPEGフレームを検出処理に渡す", async () => {
     const { recognition } = await settleRecognition();
-    child.stdout.write(Buffer.from([0x10, 0xff]));
+    child.stdout.write(Buffer.from([0x10, ...jpeg("A").subarray(0, 2)]));
     await new Promise((resolve) => setTimeout(resolve, 10));
-    child.stdout.write(Buffer.from([0xd8, 0x41, 0xff]));
+    child.stdout.write(jpeg("A").subarray(2, -1));
     await new Promise((resolve) => setTimeout(resolve, 10));
-    child.stdout.write(Buffer.from([0xd9]));
+    child.stdout.write(jpeg("A").subarray(-1));
     await vi.waitFor(() => expect(detectFace).toHaveBeenCalledOnce());
     child.close(0);
     await recognition;
@@ -312,7 +318,7 @@ describe("startFaceRecognition (RTSP)", () => {
     await vi.waitFor(() => expect(recognizeFace).toHaveBeenCalledOnce());
     await recognition;
 
-    expect(composeImages).toHaveBeenCalledWith([
+    expect(imageUtil.composeImages).toHaveBeenCalledWith([
       Buffer.from("face-one"),
       Buffer.from("face-two"),
     ]);
