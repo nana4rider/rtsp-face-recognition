@@ -5,9 +5,9 @@ import recognizeFace from "@/service/face/recognize";
 import { startFaceRecognition } from "@/service/rtsp";
 import triggerWebhook from "@/service/webhook";
 import { composeImages } from "@/util/imageUtil";
+import { mkdir, writeFile } from "fs/promises";
 import { spawn } from "node:child_process";
 import { PassThrough } from "stream";
-import { mkdir, writeFile } from "fs/promises";
 import type { Writable } from "type-fest";
 
 const writableEnv: Writable<typeof env> = env;
@@ -136,6 +136,7 @@ describe("startFaceRecognition (RTSP)", () => {
     expect(triggerWebhook).toHaveBeenCalledWith({
       type: "recognition",
       result,
+      duration: expect.any(Number) as unknown,
     });
     expect(child.kill).toHaveBeenCalledWith("SIGTERM");
   });
@@ -245,6 +246,7 @@ describe("startFaceRecognition (RTSP)", () => {
     expect(triggerWebhook).toHaveBeenLastCalledWith({
       type: "recognition",
       result,
+      duration: expect.any(Number) as unknown,
     });
   });
 

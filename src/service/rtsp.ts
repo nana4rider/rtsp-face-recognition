@@ -100,6 +100,7 @@ async function processFrames(
   debugDir: string | undefined,
   signal: AbortSignal,
 ) {
+  const startedAt = performance.now();
   let retryCount = 0;
   let detectWebhookSent = false;
   for await (const imageBuffer of frames) {
@@ -130,9 +131,10 @@ async function processFrames(
     } catch (err) {
       logger.warn("[Recognition] Failed:", err);
     }
+    const duration = Math.round(performance.now() - startedAt);
     if (result?.status === "matched") {
       logger.info(`[Recognition] recognize: ${JSON.stringify(result)}`);
-      await triggerWebhook({ type: "recognition", result });
+      await triggerWebhook({ type: "recognition", result, duration });
       return;
     }
 
