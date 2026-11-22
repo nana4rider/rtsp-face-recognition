@@ -5,9 +5,9 @@ import recognizeFace from "@/service/face/recognize";
 import { startFaceRecognition } from "@/service/rtsp";
 import triggerWebhook from "@/service/webhook";
 import * as imageUtil from "@/util/imageUtil";
-import { mkdir, writeFile } from "fs/promises";
 import { spawn } from "node:child_process";
-import { PassThrough } from "stream";
+import { mkdir, writeFile } from "node:fs/promises";
+import { PassThrough } from "node:stream";
 import type { Writable } from "type-fest";
 
 const writableEnv: Writable<typeof env> = env;
@@ -205,21 +205,13 @@ describe("startFaceRecognition (RTSP)", () => {
     await expect(recognition).rejects.toThrow("FFmpeg exited with code 2");
   });
 
-  test("FFmpegの起動エラーに原因とエラーコードを含める", async () => {
+  test("FFmpegの起動エラーは簡潔なエラーメッセージで伝播する", async () => {
     const { recognition } = await settleRecognition();
     const cause = Object.assign(new Error("socket refused"), {
       code: "ECONNREFUSED",
     });
     child.emit("error", new Error("spawn failed", { cause }) as never);
-    await expect(recognition).rejects.toThrow(
-      /FFmpeg failed: Error: spawn failed <- Error: socket refused \(ECONNREFUSED\)/,
-    );
-  });
-
-  test("FFmpegのエラーが不明な場合、代替メッセージを使う", async () => {
-    const { recognition } = await settleRecognition();
-    child.emit("error", undefined as never);
-    await expect(recognition).rejects.toThrow("FFmpeg failed: Unknown error");
+    await expect(recognition).rejects.toThrow("FFmpeg failed: spawn failed");
   });
 
   test("認識に失敗した場合、再試行後の一致結果を通知する", async () => {
@@ -336,6 +328,7 @@ describe("startFaceRecognition (RTSP)", () => {
 
   test("顔が検出されない場合、認識処理を実行しない", async () => {
     writableEnv.RECOGNITION_MAX_RETRIES = 0;
+    vi.mocked(logger.isDebugEnabled).mockReturnValue(true);
     vi.mocked(detectFace).mockResolvedValue(undefined);
     const { recognition } = await settleRecognition();
     sendFrame("no-face");
@@ -396,13 +389,12 @@ describe("startFaceRecognition (RTSP)", () => {
     );
   });
 
-  test("スナップショットディレクトリの作成に失敗した場合、例外を投げる", async () => {
+  test("スナップショットディレクトリの作成に失敗した場合、認識Promiseをrejectする", async () => {
     vi.mocked(mkdir).mockRejectedValueOnce(new Error("snapshot unavailable"));
     vi.mocked(logger.isDebugEnabled).mockReturnValue(true);
-    await expect(startFaceRecognition()).rejects.toThrow(
-      "snapshot unavailable",
-    );
-    expect(spawnMock).not.toHaveBeenCalled();
+    const recognition = startFaceRecognition();
+    await vi.waitFor(() => expect(spawnMock).toHaveBeenCalledOnce());
+    await expect(recognition).rejects.toThrow("snapshot unavailable");
   });
 
   test("デバッグモードの場合、フレーム画像と合成画像を保存する", async () => {

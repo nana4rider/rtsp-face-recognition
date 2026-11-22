@@ -6,9 +6,9 @@ import recognizeFace from "@/service/face/recognize";
 import triggerWebhook from "@/service/webhook";
 import { composeImages, createJpegFrameParser } from "@/util/imageUtil";
 import dayjs from "dayjs";
-import { mkdir, writeFile } from "fs/promises";
-import { spawn, type ChildProcess } from "node:child_process";
-import path from "path";
+import { spawn } from "node:child_process";
+import { mkdir, writeFile } from "node:fs/promises";
+import path from "node:path";
 
 let activeRecognition: Promise<void> | undefined;
 
@@ -29,16 +29,10 @@ async function recognizeFromStream() {
     timedOut = true;
     controller.abort();
   }, env.DETECT_TIMEOUT);
-  const debugDir = logger.isDebugEnabled()
-    ? dayjs().format("YYYY-MM-DD-HH-mm-ss")
-    : undefined;
   try {
-    if (debugDir) {
-      await mkdir(path.join("snapshot", debugDir), { recursive: true });
-    }
     logger.info("[RTSP] Connecting");
     const frames = new LatestFrameQueue();
-    const child: ChildProcess = spawn(
+    const child = spawn(
       "ffmpeg",
       [
         "-hide_banner",
@@ -58,13 +52,11 @@ async function recognizeFromStream() {
       { stdio: ["ignore", "pipe", "pipe"] },
     );
     child.stderr?.resume();
-    void readJpegFrames(child.stdout!, controller.signal, frames);
+    void readJpegFrames(child.stdout, controller.signal, frames);
     const stopProcess = () => child.kill("SIGTERM");
     controller.signal.addEventListener("abort", stopProcess, { once: true });
     child.on("error", (err) =>
-      frames.finish(
-        new Error(`FFmpeg failed: ${describeError(err)}`, { cause: err }),
-      ),
+      frames.finish(new Error(`FFmpeg failed: ${err.message}`, { cause: err })),
     );
     child.on("close", (code) => {
       frames.finish(
@@ -74,7 +66,7 @@ async function recognizeFromStream() {
       );
     });
     try {
-      await processFrames(frames, debugDir, controller.signal);
+      await processFrames(frames, controller.signal);
     } finally {
       controller.signal.removeEventListener("abort", stopProcess);
       if (child.exitCode === null) child.kill("SIGTERM");
@@ -88,11 +80,8 @@ async function recognizeFromStream() {
   }
 }
 
-async function processFrames(
-  frames: LatestFrameQueue,
-  debugDir: string | undefined,
-  signal: AbortSignal,
-) {
+async function processFrames(frames: LatestFrameQueue, signal: AbortSignal) {
+  const debugSnapshot = await createDebugSnapshot();
   const startedAt = performance.now();
   const faceImageBuffers: Buffer[] = [];
   let retryCount = 0;
@@ -103,7 +92,7 @@ async function processFrames(
 
     logger.debug(`receive buffer length: ${imageBuffer.length}`);
     const faceBuffer = await detectFace(imageBuffer);
-    void writeDebugFile(imageBuffer, debugDir, faceBuffer ? "ok" : "ng");
+    void debugSnapshot?.write(imageBuffer, faceBuffer ? "success" : "failure");
     if (!faceBuffer) continue;
     faceImageBuffers.push(faceBuffer);
     logger.info(`[RTSP] ${faceImageBuffers.length} faces detected.`);
@@ -118,7 +107,7 @@ async function processFrames(
     }
 
     const composite = await composeImages(faceImageBuffers);
-    void writeDebugFile(composite, debugDir, "comp");
+    void debugSnapshot?.write(composite, "composite");
     let result: RecognizeResult | undefined;
     try {
       result = await recognizeFace(composite);
@@ -202,29 +191,22 @@ class LatestFrameQueue implements AsyncIterableIterator<Buffer> {
   }
 }
 
-function describeError(err: unknown): string {
-  const messages: string[] = [];
-  let current: unknown = err;
-  while (current instanceof Error) {
-    const code =
-      "code" in current && typeof current.code === "string"
-        ? ` (${current.code})`
-        : "";
-    messages.push(`${current.name}: ${current.message}${code}`);
-    current = current.cause;
-  }
-  return messages.join(" <- ") || "Unknown error";
+interface DebugSnapshot {
+  write(imageBuffer: Buffer, suffix: string): Promise<void>;
 }
 
-async function writeDebugFile(
-  imageBuffer: Buffer,
-  targetDir: string | undefined,
-  suffix: string,
-) {
-  if (targetDir === undefined) return;
-  const timestamp = dayjs().format("YYYY-MM-DD-HH-mm-ss-SSS");
-  await writeFile(
-    path.join("snapshot", targetDir, `${timestamp}_${suffix}.jpg`),
-    imageBuffer,
-  );
+async function createDebugSnapshot(): Promise<DebugSnapshot | undefined> {
+  if (!logger.isDebugEnabled()) return undefined;
+
+  const dir = path.join("snapshot", dayjs().format("YYYY-MM-DD-HH-mm-ss"));
+  await mkdir(dir, { recursive: true });
+  return {
+    async write(imageBuffer, suffix) {
+      const timestamp = dayjs().format("YYYY-MM-DD-HH-mm-ss-SSS");
+      await writeFile(
+        path.join(dir, `${timestamp}_${suffix}.jpg`),
+        imageBuffer,
+      );
+    },
+  };
 }
