@@ -1,11 +1,11 @@
 import logger from "@/logger";
 import { route } from "@/service/http";
 import swagger from "@fastify/swagger";
-import assert from "assert";
 import fastify from "fastify";
-import fs from "fs/promises";
+import assert from "node:assert";
+import fs from "node:fs/promises";
+import path from "node:path";
 import { description, version } from "package.json";
-import path from "path";
 
 const TITLE = "RTSP Face Recognition";
 
