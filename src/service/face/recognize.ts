@@ -33,8 +33,6 @@ export default async function recognizeFace(
     return { status: "not_found" };
   }
 
-  logger.info(`[Rekognition] Similarity: ${user.Similarity}`);
-
   const similarity = user.Similarity;
 
   if (
